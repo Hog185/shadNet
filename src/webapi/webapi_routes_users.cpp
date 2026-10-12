@@ -178,7 +178,9 @@ QJsonObject BuildFriendList(Database& db, SharedState& shared,
                             int64_t callerUserId, const QString& npLanguages) {
     // @default == user,region,npId. personalDetail / avatarUrl / isOfficiallyVerified are NOT
     // in @default and must be requested explicitly.
-    const bool wantUser = isDefault || fields.contains(QStringLiteral("user"));
+    const bool wantUser = isDefault || fields.contains(QStringLiteral("user")) ||
+                          fields.contains(QStringLiteral("onlineId")) ||
+                          fields.contains(QStringLiteral("accountId"));
     const bool wantRegion = isDefault || fields.contains(QStringLiteral("region"));
     const bool wantNpId = isDefault || fields.contains(QStringLiteral("npId"));
     const bool wantDetail = fields.contains(QStringLiteral("personalDetail")) ||
