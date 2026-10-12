@@ -126,7 +126,7 @@ void ConfigManager::Parse(const QString& path) {
     bool sizeOk = false;
     m_logMaxSizeMB = str("LogMaxSizeMB", "10").toInt(&sizeOk);
     if (!sizeOk || m_logMaxSizeMB < 0) {
-        qWarning() << "LogMaxSizeMB must be a whole number of megabytes (0 = no limit); using 10";
+        qWarning() << "LogMaxSizeMB must be a whole number of megabytes (0 = no limit),using 10";
         m_logMaxSizeMB = 10;
     }
 
