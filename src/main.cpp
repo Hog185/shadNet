@@ -7,6 +7,7 @@
 #include <QLoggingCategory>
 #include "admin_api.h"
 #include "config.h"
+#include "file_logger.h"
 #include "member_api.h"
 #include "server.h"
 #include "version.h"
@@ -21,6 +22,7 @@ int main(int argc, char* argv[]) {
                                       "%{if-critical} CRIT%{endif}"
                                       "%{if-fatal}FATAL%{endif}"
                                       "  %{if-category}[%{category}] %{endif}%{message}"));
+    FileLogger::Install();
 
     QCoreApplication app(argc, argv);
     app.setApplicationName("shadnet");
@@ -33,6 +35,8 @@ int main(int argc, char* argv[]) {
 
     ConfigManager config;
     config.Load();
+    FileLogger::Configure(config.GetLogFile(),
+                          static_cast<qint64>(config.GetLogMaxSizeMB()) * 1024 * 1024);
     config.LoadBannedDomains();
 
     ShadNetServer server;

@@ -83,6 +83,14 @@ public:
         QReadLocker lk(&m_lock);
         return m_adminsList;
     }
+    QString GetLogFile() const {
+        QReadLocker lk(&m_lock);
+        return m_logFile;
+    }
+    int GetLogMaxSizeMB() const {
+        QReadLocker lk(&m_lock);
+        return m_logMaxSizeMB;
+    }
 
     bool IsEmailValidated() const {
         QReadLocker lk(&m_lock);
@@ -171,6 +179,8 @@ private:
     QString m_adminApiHost = "0.0.0.0";
     QString m_adminApiPort = "31350";
     int m_adminSessionMinutes = 480;
+    QString m_logFile;
+    int m_logMaxSizeMB = 10;
     QString m_adminApiKey;
     QStringList m_adminsList;
     QSet<QString> m_bannedDomains;

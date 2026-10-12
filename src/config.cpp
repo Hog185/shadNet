@@ -122,6 +122,13 @@ void ConfigManager::Parse(const QString& path) {
     // only way to create the first admin on a fresh install.
     m_adminsList = strList("AdminsList");
     m_registrationSecretKey = str("RegistrationSecretKey", "");
+    m_logFile = str("LogFile", "shadnet.log").trimmed();
+    bool sizeOk = false;
+    m_logMaxSizeMB = str("LogMaxSizeMB", "10").toInt(&sizeOk);
+    if (!sizeOk || m_logMaxSizeMB < 0) {
+        qWarning() << "LogMaxSizeMB must be a whole number of megabytes (0 = no limit); using 10";
+        m_logMaxSizeMB = 10;
+    }
 
     s.sync();
 

@@ -224,6 +224,17 @@ The fields a registration supplies:
 - **email**: Your email (must be unique)
 - **secretKey**: only required if the server operator set one (see below)
 
+### Server log file
+
+Everything the server prints is also written to a log file, set in `shadnet.cfg`:
+
+| Key | Effect |
+|-----|--------|
+| `LogFile` | File to write, relative to the server's folder. Default `shadnet.log`; empty turns the file off. |
+| `LogMaxSizeMB` | Size limit in megabytes (default `10`). When the next line would go past it, the file is emptied and logging starts over, with a note at the top. `0` means no limit. |
+
+The file is appended to across restarts until it reaches the limit. Both keys are read at startup.
+
 ### Server-side: controlling who can register
 
 Registration is governed by `shadnet.cfg`:
