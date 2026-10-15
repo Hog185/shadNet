@@ -145,6 +145,21 @@ target_link_libraries(shadnet PRIVATE
     libprotobuf
 )
 
-
-
 install(TARGETS shadnet RUNTIME DESTINATION bin)
+
+if(WIN32)
+    find_program(QT_WINDEPLOYQT NAMES windeployqt6 windeployqt PATHS "${Qt6_DIR}/../../../bin")
+    if(NOT QT_WINDEPLOYQT)
+    	message(FATAL_ERROR "Could not find windeployqt")
+    endif()
+	add_custom_command(TARGET shadnet POST_BUILD
+		COMMAND ${QT_WINDEPLOYQT} $<TARGET_FILE:shadnet>
+			--no-compiler-runtime
+			--no-system-d3d-compiler
+			--no-system-dxc-compiler
+			--no-opengl-sw
+			--no-translations
+		COMMENT "Deploying Qt runtime and TLS plugins"
+		VERBATIM
+	)
+endif()
