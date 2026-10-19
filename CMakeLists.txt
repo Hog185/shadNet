@@ -62,6 +62,8 @@ set(SOURCES
     src/config.h
     src/server.cpp
     src/server.h
+    src/auth_code_store.cpp
+    src/auth_code_store.h
     src/client_session.cpp
     src/client_session.h
     src/protocol.h
@@ -103,6 +105,8 @@ set(SOURCES
     src/webapi/webapi_routes_commerce.cpp
     src/webapi/webapi_routes_identity.h
     src/webapi/webapi_routes_identity.cpp
+    src/webapi/webapi_routes_authcode.h
+    src/webapi/webapi_routes_authcode.cpp
     src/webapi/webapi_routes_common.h
     # Read-only stats HTTP/JSON listener
     src/stats_server.h
