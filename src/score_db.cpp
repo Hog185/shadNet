@@ -4,6 +4,7 @@
 #include <QDebug>
 #include <QSqlError>
 #include <QSqlQuery>
+#include <QStringList>
 #include "score_db.h"
 
 bool ScoreDb::CreateBoard(const QString& comId, uint32_t boardId) {
@@ -75,7 +76,7 @@ QVector<std::pair<QPair<QString, uint32_t>, ScoreBoardConfig>> ScoreDb::AllBoard
 
 std::optional<ScoreDbError> ScoreDb::RecordScore(const QString& comId, uint32_t boardId,
                                                  const ScoreBoardConfig& cfg,
-                                                 const ScoreEntry& entry) {
+                                                 const ScoreEntry& entry, uint64_t compareDate) {
     // NORMAL_UPDATE: only update when score is better (>= for desc, <= for asc).
     // FORCE_UPDATE:  always overwrite.
     QString sql = "INSERT INTO score(communication_id,board_id,user_id,character_id,"
@@ -84,9 +85,14 @@ std::optional<ScoreDbError> ScoreDb::RecordScore(const QString& comId, uint32_t 
                   " ON CONFLICT(communication_id,board_id,user_id,character_id) DO UPDATE SET"
                   " score=excluded.score, comment=excluded.comment,"
                   " game_info=excluded.game_info, data_id=NULL, timestamp=excluded.timestamp";
+    QStringList conds;
     if (cfg.updateMode == 0)
-        sql += (cfg.sortMode == 0) ? " WHERE excluded.score >= score"
-                                   : " WHERE excluded.score <= score";
+        conds << ((cfg.sortMode == 0) ? "excluded.score >= score.score"
+                                      : "excluded.score <= score.score");
+    if (compareDate != 0)
+        conds << "score.timestamp <= ?";
+    if (!conds.isEmpty())
+        sql += " WHERE " + conds.join(" AND ");
 
     QSqlQuery q(m_db);
     q.prepare(sql);
@@ -100,14 +106,28 @@ std::optional<ScoreDbError> ScoreDb::RecordScore(const QString& comId, uint32_t 
     q.addBindValue(entry.gameInfo.isEmpty() ? QVariant(QMetaType(QMetaType::QByteArray))
                                             : QVariant(entry.gameInfo));
     q.addBindValue(static_cast<qulonglong>(entry.timestamp));
+    if (compareDate != 0)
+        q.addBindValue(static_cast<qulonglong>(compareDate));
 
     if (!q.exec()) {
         qCritical() << "recordScore:" << q.lastError().text();
         return ScoreDbError::Internal;
     }
-    if (q.numRowsAffected() == 0)
-        return ScoreDbError::NotBest;
-    return std::nullopt;
+    if (q.numRowsAffected() != 0)
+        return std::nullopt;
+
+    if (compareDate != 0) {
+        QSqlQuery t(m_db);
+        t.prepare("SELECT timestamp FROM score WHERE communication_id=? AND board_id=?"
+                  " AND user_id=? AND character_id=?");
+        t.addBindValue(comId);
+        t.addBindValue(boardId);
+        t.addBindValue(static_cast<qlonglong>(entry.userId));
+        t.addBindValue(entry.characterId);
+        if (t.exec() && t.next() && t.value(0).toULongLong() > compareDate)
+            return ScoreDbError::DateConflict;
+    }
+    return ScoreDbError::NotBest;
 }
 
 std::optional<ScoreDbError> ScoreDb::SetScoreDataId(const QString& comId, uint32_t boardId,

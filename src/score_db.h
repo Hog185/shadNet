@@ -7,7 +7,7 @@
 #include <QVector>
 #include "score_types.h"
 
-enum class ScoreDbError { Internal, NotBest, Invalid };
+enum class ScoreDbError { Internal, NotBest, Invalid, DateConflict };
 
 class ScoreDb {
 public:
@@ -18,10 +18,9 @@ public:
     std::optional<ScoreBoardConfig> GetBoard(const QString& comId, uint32_t boardId,
                                              bool createMissing);
     QVector<std::pair<QPair<QString, uint32_t>, ScoreBoardConfig>> AllBoards();
-
-    // Score operations
     std::optional<ScoreDbError> RecordScore(const QString& comId, uint32_t boardId,
-                                            const ScoreBoardConfig& cfg, const ScoreEntry& entry);
+                                            const ScoreBoardConfig& cfg, const ScoreEntry& entry,
+                                            uint64_t compareDate = 0);
     std::optional<ScoreDbError> SetScoreDataId(const QString& comId, uint32_t boardId,
                                                int64_t userId, int32_t characterId, int64_t score,
                                                uint64_t dataId);

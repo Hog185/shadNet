@@ -30,7 +30,14 @@ ScoreTableCache& ScoreCache::GetOrCreate(const QString& comId, uint32_t boardId,
     return inner[boardId];
 }
 
-static shadnet::ScoreRankData ToRankData(const ScoreEntry& e, int index) {
+static uint32_t SharedRank(const QVector<ScoreEntry>& sorted, int index) {
+    int i = index;
+    while (i > 0 && sorted[i - 1].score == sorted[index].score)
+        --i;
+    return static_cast<uint32_t>(i + 1);
+}
+
+static shadnet::ScoreRankData ToRankData(const ScoreEntry& e, int index, uint32_t sharedRank) {
     shadnet::ScoreRankData r;
     const QByteArray npidU8 = e.npid.toUtf8();
     r.set_npid(npidU8.constData(), static_cast<size_t>(npidU8.size()));
@@ -40,6 +47,7 @@ static shadnet::ScoreRankData ToRankData(const ScoreEntry& e, int index) {
     r.set_hasgamedata(e.dataId.has_value());
     r.set_recorddate(e.timestamp);
     r.set_accountid(e.userId);
+    r.set_sharedrank(sharedRank);
     return r;
 }
 
@@ -102,9 +110,10 @@ uint32_t ScoreCache::InsertScore(const QString& comId, uint32_t boardId,
 }
 
 // Append one rank entry (and optionally comment / game-info) to a response.
-static void AppendEntry(shadnet::GetScoreResponse& resp, const ScoreEntry& e, int idx,
+static void AppendEntry(shadnet::GetScoreResponse& resp, const QVector<ScoreEntry>& sorted, int idx,
                         bool withComment, bool withGameInfo) {
-    *resp.add_rankarray() = ToRankData(e, idx);
+    const ScoreEntry& e = sorted[idx];
+    *resp.add_rankarray() = ToRankData(e, idx, SharedRank(sorted, idx));
     if (withComment) {
         const QByteArray commentU8 = e.comment.toUtf8();
         resp.add_commentarray()->assign(commentU8.constData(),
@@ -146,7 +155,7 @@ shadnet::GetScoreResponse ScoreCache::GetScoreRange(const QString& comId, uint32
     int end = std::min(start + static_cast<int>(numRanks), static_cast<int>(t.sorted.size()));
 
     for (int i = start; i < end; ++i)
-        AppendEntry(resp, t.sorted[i], i, withComment, withGameInfo);
+        AppendEntry(resp, t.sorted, i, withComment, withGameInfo);
 
     return resp;
 }
@@ -170,8 +179,47 @@ shadnet::GetScoreResponse ScoreCache::GetScoreByIds(const QString& comId, uint32
             continue;
         }
         int idx = tp->lookup[uid][cid];
-        AppendEntry(resp, tp->sorted[idx], idx, withComment, withGameInfo);
+        AppendEntry(resp, tp->sorted, idx, withComment, withGameInfo);
     }
+
+    return resp;
+}
+
+shadnet::GetScoreResponse ScoreCache::GetScoreRanked(const QString& comId, uint32_t boardId,
+                                                     const QVector<QPair<int64_t, int32_t>>& ids,
+                                                     uint32_t startRank, uint32_t maxResults,
+                                                     bool withComment, bool withGameInfo) {
+    shadnet::GetScoreResponse resp;
+    QReadLocker lk(&m_lock);
+
+    if (!m_tables.contains(comId) || !m_tables[comId].contains(boardId)) {
+        resp.set_lastsortdate(ShadNetTimestamp());
+        return resp;
+    }
+    const ScoreTableCache& t = m_tables[comId][boardId];
+    resp.set_totalrecord(static_cast<uint32_t>(t.sorted.size()));
+    resp.set_lastsortdate(t.lastInsert);
+
+    // Board positions of the requested players that have a score, best first.
+    QVector<int> found;
+    found.reserve(ids.size());
+    for (const auto& [uid, cid] : ids) {
+        auto u = t.lookup.constFind(uid);
+        if (u == t.lookup.constEnd())
+            continue;
+        auto c = u->constFind(cid);
+        if (c != u->constEnd() && !found.contains(*c))
+            found.append(*c);
+    }
+    std::sort(found.begin(), found.end());
+    resp.set_hits(static_cast<uint32_t>(found.size()));
+
+    const int start = static_cast<int>(startRank == 0 ? 0 : startRank - 1);
+    int end = static_cast<int>(found.size());
+    if (maxResults > 0)
+        end = std::min(end, start + static_cast<int>(maxResults));
+    for (int i = start; i < end; ++i)
+        AppendEntry(resp, t.sorted, found[i], withComment, withGameInfo);
 
     return resp;
 }
