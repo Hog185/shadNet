@@ -66,10 +66,12 @@ ErrorType ClientSession::CmdRecordScore(StreamExtractor& data, QByteArray& reply
     entry.timestamp = ShadNetTimestamp();
     entry.npid = m_info.npid;
 
-    auto dbErr = sdb.RecordScore(cid, req.boardid(), *cfg, entry);
+    auto dbErr = sdb.RecordScore(cid, req.boardid(), *cfg, entry, req.comparedate());
     if (dbErr) {
         if (*dbErr == ScoreDbError::NotBest)
             return ErrorType::ScoreNotBest;
+        if (*dbErr == ScoreDbError::DateConflict)
+            return ErrorType::CondFail; // stored score is newer than compareDate
         return ErrorType::DbFail;
     }
 
@@ -93,6 +95,13 @@ ErrorType ClientSession::CmdRecordScoreData(StreamExtractor& data) {
 
     QString cid = comIdStr(comId);
 
+    auto sdb = scoreDb(m_db.get());
+    auto cfg = sdb.GetBoard(cid, req.boardid(), false);
+    if (!cfg)
+        return ErrorType::NotFound;
+    if (static_cast<uint64_t>(rawData.size()) > cfg->uploadSizeLimit)
+        return ErrorType::TooLarge;
+
     auto cacheErr = m_shared->scoreCache->ContainsScoreWithNoData(cid, req.boardid(), m_info.userId,
                                                                   req.pcid(), req.score());
     if (cacheErr) {
@@ -115,7 +124,6 @@ ErrorType ClientSession::CmdRecordScoreData(StreamExtractor& data) {
         return ErrorType::NotFound;
     }
 
-    auto sdb = scoreDb(m_db.get());
     sdb.SetScoreDataId(cid, req.boardid(), m_info.userId, req.pcid(), req.score(), fileId);
     return ErrorType::NoError;
 }
@@ -175,7 +183,6 @@ ErrorType ClientSession::CmdGetScoreFriends(StreamExtractor& data, QByteArray& r
     shadnet::GetScoreFriendsRequest req;
     if (!decodeProto(req, data) || data.error())
         return ErrorType::Malformed;
-
     QVector<QPair<int64_t, int32_t>> ids;
     if (req.includeself())
         ids.append({m_info.userId, 0});
@@ -184,16 +191,15 @@ ErrorType ClientSession::CmdGetScoreFriends(StreamExtractor& data, QByteArray& r
         QReadLocker lk(&m_shared->clientsLock);
         auto self = m_shared->clients.find(m_info.userId);
         if (self != m_shared->clients.end()) {
-            for (auto it = self->friends.begin(); it != self->friends.end(); ++it) {
-                if (req.max() > 0 && static_cast<uint32_t>(ids.size()) >= req.max())
-                    break;
+            for (auto it = self->friends.begin(); it != self->friends.end(); ++it)
                 ids.append({it.key(), 0});
-            }
         }
     }
 
-    auto resp = m_shared->scoreCache->GetScoreByIds(comIdStr(comId), req.boardid(), ids,
-                                                    req.withcomment(), req.withgameinfo());
+    // Only friends with a score, sorted by rank, starting at startRank.
+    auto resp =
+        m_shared->scoreCache->GetScoreRanked(comIdStr(comId), req.boardid(), ids, req.startrank(),
+                                             req.max(), req.withcomment(), req.withgameinfo());
     appendProto(reply, resp);
     return ErrorType::NoError;
 }

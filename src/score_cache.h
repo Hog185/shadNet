@@ -35,6 +35,10 @@ public:
     shadnet::GetScoreResponse GetScoreByIds(const QString& comId, uint32_t boardId,
                                             const QVector<QPair<int64_t, int32_t>>& ids,
                                             bool withComment, bool withGameInfo);
+    shadnet::GetScoreResponse GetScoreRanked(const QString& comId, uint32_t boardId,
+                                             const QVector<QPair<int64_t, int32_t>>& ids,
+                                             uint32_t startRank, uint32_t maxResults,
+                                             bool withComment, bool withGameInfo);
 
     std::optional<ScoreCacheError> ContainsScoreWithNoData(const QString& comId, uint32_t boardId,
                                                            int64_t userId, int32_t charId,
